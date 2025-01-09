@@ -2,15 +2,27 @@
 <html lang="en">
 <head>
     <meta charset="utf-8"/>
-    <title>PA1</title>
+    <title>PA2</title>
     <script src="./Utils/trackball-rotator.js"></script>
     <script src="./Utils/m4.js"></script>
-    <script src="./shader.gpu"></script>
+    <script src="./shader.js"></script>
     <script src="./main.js"></script>
 </head>
 <body onload="init()">
     <div>A Cube with "Trackball" Mouse Rotation</div>
     <div>Surface of Revolution With Damping Circular Waves</div>
+
+    <div>
+        <label for="uStepsSlider">U Steps:</label>
+        <input id="uStepsSlider" type="range" min="1" max="100" value="30" oninput="updateSurface()">
+        <span id="uStepsValue">30</span>
+    </div>
+
+    <div>
+        <label for="vStepsSlider">V Steps:</label>
+        <input id="vStepsSlider" type="range" min="1" max="100" value="30" oninput="updateSurface()">
+        <span id="vStepsValue">30</span>
+    </div>
 
     <div id="canvas-holder">
         <canvas width="1000" height="800" id="webglcanvas"></canvas>

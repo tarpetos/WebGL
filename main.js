@@ -5,33 +5,70 @@ let buffers;
 let programInfo;
 let textures;
 let then = 0;
+let texturePoint = { u: 0.5, v: 0.5 };
+let textureScale = 1.0;
+const POINT_MOVE_SPEED = 0.01;
+const SCALE_MIN = 0.5;
+const SCALE_MAX = 4.0;
 
-function calculateNormals(vertices, indices) {
-    const normals = new Array(vertices.length).fill(0);
-    for (let i = 0; i < indices.length; i += 3) {
-        const i1 = indices[i] * 3;
-        const i2 = indices[i + 1] * 3;
-        const i3 = indices[i + 2] * 3;
-        const v1 = [vertices[i1], vertices[i1 + 1], vertices[i1 + 2]];
-        const v2 = [vertices[i2], vertices[i2 + 1], vertices[i2 + 2]];
-        const v3 = [vertices[i3], vertices[i3 + 1], vertices[i3 + 2]];
-        const vec1 = [v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]];
-        const vec2 = [v3[0] - v1[0], v3[1] - v1[1], v3[2] - v1[2]];
-        const normal = [
-            vec1[1] * vec2[2] - vec1[2] * vec2[1],
-            vec1[2] * vec2[0] - vec1[0] * vec2[2],
-            vec1[0] * vec2[1] - vec1[1] * vec2[0]
-        ];
-        const length = Math.sqrt(normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]);
-        normal.forEach((val, idx) => normal[idx] = val / length);
-        for (let j = 0; j < 3; j++) {
-            const vertexIndex = indices[i + j] * 3;
-            normals[vertexIndex] = normal[0];
-            normals[vertexIndex + 1] = normal[1];
-            normals[vertexIndex + 2] = normal[2];
+function initKeyboardControls() {
+    document.addEventListener("keydown", (event) => {
+        switch(event.key.toUpperCase()) {
+            case "W":
+                texturePoint.v = Math.max(0, texturePoint.v - POINT_MOVE_SPEED);
+                break;
+            case "S":
+                texturePoint.v = Math.min(1, texturePoint.v + POINT_MOVE_SPEED);
+                break;
+            case "A":
+                texturePoint.u = Math.max(0, texturePoint.u - POINT_MOVE_SPEED);
+                break;
+            case "D":
+                texturePoint.u = Math.min(1, texturePoint.u + POINT_MOVE_SPEED);
+                break;
+            case "Q":
+                textureScale = Math.max(SCALE_MIN, textureScale - 0.1);
+                break;
+            case "E":
+                textureScale = Math.min(SCALE_MAX, textureScale + 0.1);
+                break;
         }
-    }
-    return normals;
+        draw();
+    });
+}
+
+function loadTexture(gl, url) {
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    const pixel = new Uint8Array([0, 0, 255, 255]);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+
+    const image = new Image();
+    image.onload = function() {
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+        gl.generateMipmap(gl.TEXTURE_2D);
+    };
+    image.src = url;
+    return texture;
+}
+
+function initTextures(gl) {
+    const textures = {
+        diffuse: loadTexture(gl, "Textures/diffuse.png"),
+        specular: loadTexture(gl, "Textures/specular.png"),
+        normal: loadTexture(gl, "Textures/normal.png")
+    };
+
+    Object.values(textures).forEach(texture => {
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    });
+
+    return textures;
 }
 
 function CreateSurfaceData() {
@@ -59,7 +96,7 @@ function CreateSurfaceData() {
             texCoords.push(ui / uSteps, ri / vSteps);
             const tangent = [-r * Math.sin(u), r * Math.cos(u), 0];
             const len = Math.sqrt(tangent[0] * tangent[0] + tangent[1] * tangent[1] + tangent[2] * tangent[2]);
-            tangents.push(tangent[0] / len, tangent[1] / len, tangent[2] / len);
+            tangents.push(tangent[0]/len, tangent[1]/len, tangent[2]/len);
 
             if (ri < vSteps && ui < uSteps) {
                 const currentRow = ri * (uSteps + 1);
@@ -77,6 +114,34 @@ function CreateSurfaceData() {
     }
 
     return {vertices, indices, texCoords, tangents};
+}
+
+function calculateNormals(vertices, indices) {
+    const normals = new Array(vertices.length).fill(0);
+    for (let i = 0; i < indices.length; i += 3) {
+        const i1 = indices[i] * 3;
+        const i2 = indices[i + 1] * 3;
+        const i3 = indices[i + 2] * 3;
+        const v1 = [vertices[i1], vertices[i1 + 1], vertices[i1 + 2]];
+        const v2 = [vertices[i2], vertices[i2 + 1], vertices[i2 + 2]];
+        const v3 = [vertices[i3], vertices[i3 + 1], vertices[i3 + 2]];
+        const vec1 = [v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]];
+        const vec2 = [v3[0] - v1[0], v3[1] - v1[1], v3[2] - v1[2]];
+        const normal = [
+            vec1[1] * vec2[2] - vec1[2] * vec2[1],
+            vec1[2] * vec2[0] - vec1[0] * vec2[2],
+            vec1[0] * vec2[1] - vec1[1] * vec2[0]
+        ];
+        const length = Math.sqrt(normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]);
+        normal.forEach((val, idx) => normal[idx] = val / length);
+        for (let j = 0; j < 3; j++) {
+            const vertexIndex = indices[i + j] * 3;
+            normals[vertexIndex] = normal[0];
+            normals[vertexIndex + 1] = normal[1];
+            normals[vertexIndex + 2] = normal[2];
+        }
+    }
+    return normals;
 }
 
 function initBuffers(gl, surfaceData) {
@@ -111,18 +176,6 @@ function initBuffers(gl, surfaceData) {
     };
 }
 
-function createShader(gl, type, source) {
-    const shader = gl.createShader(type);
-    gl.shaderSource(shader, source);
-    gl.compileShader(shader);
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-        console.error("Shader compilation error: " + gl.getShaderInfoLog(shader));
-        gl.deleteShader(shader);
-        return null;
-    }
-    return shader;
-}
-
 function initializeShaderProgram() {
     const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
     const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
@@ -151,8 +204,22 @@ function initializeShaderProgram() {
             diffuseMap: gl.getUniformLocation(program, "uDiffuseMap"),
             specularMap: gl.getUniformLocation(program, "uSpecularMap"),
             normalMap: gl.getUniformLocation(program, "uNormalMap"),
+            texturePoint: gl.getUniformLocation(program, "uTexturePoint"),
+            textureScale: gl.getUniformLocation(program, "uTextureScale"),
         },
     };
+}
+
+function createShader(gl, type, source) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        console.error("Shader compilation error: " + gl.getShaderInfoLog(shader));
+        gl.deleteShader(shader);
+        return null;
+    }
+    return shader;
 }
 
 function draw() {
@@ -180,6 +247,9 @@ function draw() {
         2.0
     ];
     gl.uniform3fv(programInfo.uniformLocations.lightPosition, lightPosition);
+
+    gl.uniform2f(programInfo.uniformLocations.texturePoint, texturePoint.u, texturePoint.v);
+    gl.uniform1f(programInfo.uniformLocations.textureScale, textureScale);
 
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, textures.diffuse);
@@ -228,41 +298,6 @@ function updateSurface() {
     draw();
 }
 
-function loadTexture(gl, url) {
-    const texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-
-    const pixel = new Uint8Array([0, 0, 255, 255]);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
-
-    const image = new Image();
-    image.onload = function () {
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-        gl.generateMipmap(gl.TEXTURE_2D);
-    };
-    image.src = url;
-    return texture;
-}
-
-function initTextures(gl) {
-    const textures = {
-        diffuse: loadTexture(gl, "Textures/diffuse.png"),
-        specular: loadTexture(gl, "Textures/specular.png"),
-        normal: loadTexture(gl, "Textures/normal.png")
-    };
-
-    Object.values(textures).forEach(texture => {
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-    });
-
-    return textures;
-}
-
 function init() {
     try {
         let canvas = document.getElementById("webglcanvas");
@@ -281,6 +316,7 @@ function init() {
         gl.clearColor(0.0, 0.0, 0.0, 1.0);
         gl.enable(gl.DEPTH_TEST);
 
+        initKeyboardControls();
         rotator = new TrackballRotator(gl.canvas, draw, 15);
         requestAnimationFrame(animate);
 

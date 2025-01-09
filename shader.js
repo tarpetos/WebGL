@@ -7,6 +7,8 @@ const vertexShaderSource = `
     uniform mat4 uModelViewMatrix;
     uniform mat4 uProjectionMatrix;
     uniform vec3 uLightPosition;
+    uniform vec2 uTexturePoint;
+    uniform float uTextureScale;
     
     varying vec3 vNormal;
     varying vec3 vTangent;
@@ -19,6 +21,10 @@ const vertexShaderSource = `
         vec4 vertexPosition = uModelViewMatrix * vec4(aVertexPosition, 1.0);
         gl_Position = uProjectionMatrix * vertexPosition;
         
+        vec2 centered = aTextureCoord - uTexturePoint;
+        vec2 scaled = centered * uTextureScale;
+        vTextureCoord = scaled + uTexturePoint;
+        
         vNormal = normalize(mat3(uModelViewMatrix) * aVertexNormal);
         vTangent = normalize(mat3(uModelViewMatrix) * aVertexTangent);
         
@@ -26,7 +32,6 @@ const vertexShaderSource = `
         vec3 bitangent = cross(vNormal, vTangent);
         
         vPosition = vertexPosition.xyz;
-        vTextureCoord = aTextureCoord;
         vLightPos = (uModelViewMatrix * vec4(uLightPosition, 1.0)).xyz;
         vViewPos = -vPosition;
     }
@@ -65,7 +70,6 @@ const fragmentShaderSource = `
         vec3 reflectDir = reflect(-lightDir, normal);
         
         vec3 ambient = vec3(0.2) * diffuseColor.rgb;
-        
         float diff = max(dot(normal, lightDir), 0.0);
         vec3 diffuse = diff * diffuseColor.rgb;
         
@@ -73,7 +77,6 @@ const fragmentShaderSource = `
         vec3 specular = spec * specularColor.rgb;
         
         vec3 finalColor = ambient + diffuse + specular;
-        
         gl_FragColor = vec4(finalColor, 1.0);
     }
 `;
